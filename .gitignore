@@ -1,0 +1,33 @@
+# .gitignore
+
+# Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebook files
+.ipynb_checkpoints
+
+# Model files
+*.pth
+
+# Dataset files
+data/
+
+# Virtual environment
+venv/
+*.egg-info/
+dist/
+build/
+*.egg
+*.eggs
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# macOS files
+.DS_Store
