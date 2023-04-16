@@ -3,11 +3,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from torch.nn import TransformerDecoder, TransformerDecoderLayer
 from transformers import ViTModel
 from PIL import Image
 import numpy as np
 from utils import vocabulary, tokenizer, img_transform
+from model import CustomTransformerDecoder
 
 # Load and preprocess data
 class Pix2CodeDataset(Dataset):
@@ -56,27 +56,6 @@ class Pix2CodeDataset(Dataset):
 
         return img_tensor, dsl_tensor
 
-
-class CustomTransformerDecoder(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1, dropout=0.1):
-        super(CustomTransformerDecoder, self).__init__()
-
-        self.embedding = nn.Embedding(output_size, hidden_size)
-        self.image_feature_projection = nn.Linear(input_size, hidden_size)
-        self.transformer_decoder_layer = TransformerDecoderLayer(hidden_size, nhead=8, dim_feedforward=hidden_size*4)
-        self.transformer_decoder = TransformerDecoder(self.transformer_decoder_layer, num_layers=num_layers)
-        self.fc = nn.Linear(hidden_size, output_size)
-
-    def forward(self, input, image_features):
-        embedded = self.embedding(input)
-        embedded = embedded.permute(1, 0, 2)
-        image_features = self.image_feature_projection(image_features)
-        image_features = image_features.unsqueeze(0).repeat(embedded.size(0), 1, 1)
-        output = self.transformer_decoder(embedded, image_features)
-        output = self.fc(output)
-        return output
-
-
 # Initialize ViT model, dataset, and data loader
 vit_model = ViTModel.from_pretrained('google/vit-base-patch16-224').base_model
     
@@ -106,7 +85,7 @@ def pad_collate_fn(batch):
     return img_tensor, dsl_tensor
 
 
-batch_size = 32
+batch_size = 256
 train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=pad_collate_fn)
 val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate_fn)
 
@@ -117,8 +96,8 @@ hidden_size = 256
 output_size = len(vocabulary) # Replace with the size of your DSL token vocabulary
 num_layers = 3
 dropout = 0.1
-epochs = 30
-learning_rate = 5e-4
+epochs = 100
+learning_rate = 0.001
 
 # Initialize the decoder, loss function, and optimizer
 decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers, dropout)

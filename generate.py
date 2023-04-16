@@ -2,16 +2,19 @@ import torch
 from PIL import Image
 import numpy as np
 from transformers import ViTModel
-from utils import vocabulary, tokenizer, img_transform, CustomTransformerDecoder
+from utils import vocabulary, tokenizer, img_transform
+from model import CustomTransformerDecoder
 
 def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path, max_len=128):
  # Set the models to evaluation mode
     decoder.eval()
     vit_model.eval()
+    
+    device = torch.device("cpu")
 
     # Load saved model weights
-    saved_decoder_weights = torch.load(decoder_weights_path, map_location=torch.device('cpu'))
-    saved_vit_weights = torch.load(vit_weights_path, map_location=torch.device('cpu'))
+    saved_decoder_weights = torch.load(decoder_weights_path, map_location=device)
+    saved_vit_weights = torch.load(vit_weights_path, map_location=device)
 
     # Load the weights into the models
     decoder.load_state_dict(saved_decoder_weights)
@@ -26,7 +29,6 @@ def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decode
     img_stacked_pil = Image.fromarray(np.uint8(img_stacked), mode='RGB')
     img_tensor = img_transform(img_stacked_pil).unsqueeze(0).to(device)
 
-    # Extract image features using ViT model
     with torch.no_grad():
         image_features = vit_model(img_tensor).last_hidden_state[:, 0, :]
 
@@ -59,7 +61,7 @@ def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decode
     return generated_code
 
 if __name__ == "__main__":
-    img_path = "path/to/your/input/image.png"
+    img_path = "images.png"
     decoder_weights_path = "best_decoder.pth"
     vit_weights_path = "fine_tuned_vit_model.pth"
 
