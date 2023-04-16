@@ -100,7 +100,8 @@ learning_rate = 0.001
 
 # Initialize the decoder, loss function, and optimizer
 decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
-criterion = nn.CrossEntropyLoss()
+PAD_token_id = tokenizer.encode('<PAD>')[0]
+criterion = nn.CrossEntropyLoss(ignore_index=PAD_token_id)
 optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
 
 # Initialize variables to track the best validation loss and epoch
@@ -108,11 +109,10 @@ best_val_loss = float("inf")
 best_epoch = 0
 
 # Train the model
-PAD_token_id = tokenizer.encode('<PAD>')[0]
-criterion = nn.CrossEntropyLoss(ignore_index=PAD_token_id)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vit_model.to(device)
 decoder.to(device)
+
 vit_model.eval()
 
 for epoch in range(epochs):
