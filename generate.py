@@ -5,7 +5,7 @@ from transformers import ViTModel
 from utils import vocabulary, tokenizer, img_transform
 from model import CustomTransformerDecoder
 
-def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path, max_len=128):
+def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path, max_len=48):
  # Set the models to evaluation mode
     decoder.eval()
     vit_model.eval()

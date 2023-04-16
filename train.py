@@ -51,7 +51,7 @@ class Pix2CodeDataset(Dataset):
             dsl_code = f.read()
 
         img_tensor = self.img_transform(img_stacked_pil)
-        dsl_tokens = self.dsl_transform(dsl_code)
+        dsl_tokens = self.dsl_transform('<START> ' + dsl_code + ' <END>')
         dsl_tensor = torch.LongTensor(dsl_tokens)
 
         return img_tensor, dsl_tensor
