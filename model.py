@@ -2,7 +2,7 @@ import torch.nn as nn
 from torch.nn import TransformerDecoder, TransformerDecoderLayer
 
 class CustomTransformerDecoder(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1, dropout=0.1):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=1):
         super(CustomTransformerDecoder, self).__init__()
 
         self.embedding = nn.Embedding(output_size, hidden_size)

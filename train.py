@@ -95,12 +95,11 @@ input_size = 768
 hidden_size = 256
 output_size = len(vocabulary) # Replace with the size of your DSL token vocabulary
 num_layers = 3
-dropout = 0.1
 epochs = 100
 learning_rate = 0.001
 
 # Initialize the decoder, loss function, and optimizer
-decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers, dropout)
+decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
 
@@ -109,14 +108,16 @@ best_val_loss = float("inf")
 best_epoch = 0
 
 # Train the model
+PAD_token_id = tokenizer.encode('<PAD>')[0]
+criterion = nn.CrossEntropyLoss(ignore_index=PAD_token_id)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vit_model.to(device)
 decoder.to(device)
+vit_model.eval()
 
 for epoch in range(epochs):
     for i, (img_tensor, dsl_tensor) in enumerate(train_data_loader):
         loss =0
-        vit_model.train()
         decoder.train()
         img_tensor = img_tensor.to(device)
         dsl_tensor = dsl_tensor.to(device)
@@ -133,7 +134,6 @@ for epoch in range(epochs):
         target_tokens = target_tokens.permute(1, 0)
         loss = criterion(output.permute(0, 2, 1), target_tokens)
 
-
         # Backpropagation and optimization
         optimizer.zero_grad()
         loss.backward()
@@ -146,7 +146,6 @@ for epoch in range(epochs):
     # Evaluate the model on the validation set
     val_loss = 0
     decoder.eval()
-    vit_model.eval()
     with torch.no_grad():
         for i, (img_tensor, dsl_tensor) in enumerate(val_data_loader):
             img_tensor = img_tensor.to(device)
@@ -159,7 +158,9 @@ for epoch in range(epochs):
 
             output = decoder(input_tokens, image_features)
             target_tokens = target_tokens.permute(1, 0)
+
             val_loss += criterion(output.permute(0, 2, 1), target_tokens).item()
+
 
     val_loss /= len(val_data_loader)
     print(f"Epoch {epoch+1}/{epochs}, Validation Loss: {val_loss}")
@@ -169,6 +170,5 @@ for epoch in range(epochs):
         best_val_loss = val_loss
         best_epoch = epoch
         torch.save(decoder.state_dict(), "best_decoder.pth")
-        torch.save(vit_model.state_dict(), "fine_tuned_vit_model.pth")
 
 print(f"Best model weights saved from epoch {best_epoch+1} with validation loss {best_val_loss}")

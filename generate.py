@@ -14,12 +14,9 @@ def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decode
 
     # Load saved model weights
     saved_decoder_weights = torch.load(decoder_weights_path, map_location=device)
-    saved_vit_weights = torch.load(vit_weights_path, map_location=device)
 
     # Load the weights into the models
     decoder.load_state_dict(saved_decoder_weights)
-    vit_model.load_state_dict(saved_vit_weights)
-
 
     # Load and preprocess image
     img_rgb = Image.open(img_path)
@@ -71,8 +68,7 @@ if __name__ == "__main__":
     hidden_size = 256
     output_size = len(vocabulary)
     num_layers = 3
-    dropout = 0.1
-    decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers, dropout)
+    decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
 
     generated_code = generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path)
     print(generated_code)
