@@ -17,8 +17,10 @@ class CustomTokenizer:
         self.inv_vocab = {i: token for i, token in enumerate(vocab)}
 
     def encode(self, text):
-        pattern = r'[ ,\n]+'
-        tokens = re.split(pattern, text)        
+        pattern = r'(?<=[,{\}])|(?=[,{\}])|\s+'
+        tokens = re.split(pattern, text)
+        tokens = list(filter(None, tokens))  # Remove empty tokens
+        
         encoded_tokens = []
         for token in tokens:
             if token in self.vocab:
@@ -27,6 +29,7 @@ class CustomTokenizer:
                 print(f"Unknown vocabulary: '{token}'")
                 encoded_tokens.append(self.vocab.index("<UNK>"))
         return encoded_tokens
+
 
     def decode(self, tokens):
         return ' '.join([self.inv_vocab[token] for token in tokens])

@@ -5,7 +5,7 @@ from transformers import ViTModel
 from utils import vocabulary, tokenizer, img_transform
 from model import CustomTransformerDecoder
 
-def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path, max_len=48):
+def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, max_len=128):
  # Set the models to evaluation mode
     decoder.eval()
     vit_model.eval()
@@ -36,7 +36,7 @@ def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decode
     generated_tokens = []
 
     # Generate tokens one-by-one
-    for _ in range(max_len):
+    for i in range(max_len):
         with torch.no_grad():
             output = decoder(input_sequence, image_features)
 
@@ -44,7 +44,7 @@ def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decode
         token = output[-1, 0].argmax().item()
 
         # Print the generated token
-        print(f"Generated token: {token} - {tokenizer.decode([token])}")
+        print(f"Generated token {i}: {token} - {tokenizer.decode([token])}")
 
         # Stop generating tokens when <END> token is produced
         if token == tokenizer.encode('<END>')[0]:
@@ -60,15 +60,14 @@ def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decode
 if __name__ == "__main__":
     img_path = "images.png"
     decoder_weights_path = "best_decoder.pth"
-    vit_weights_path = "fine_tuned_vit_model.pth"
 
     # Instantiate the ViT model and the decoder
     vit_model = ViTModel.from_pretrained('google/vit-base-patch16-224').base_model
     input_size = 768
     hidden_size = 256
     output_size = len(vocabulary)
-    num_layers = 3
+    num_layers = 6
     decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
 
-    generated_code = generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path)
+    generated_code = generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path)
     print(generated_code)

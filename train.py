@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from transformers import ViTModel
+from transformers import ViTModel, AdamW, get_linear_schedule_with_warmup
 from PIL import Image
 import numpy as np
 from utils import vocabulary, tokenizer, img_transform
@@ -51,7 +51,7 @@ class Pix2CodeDataset(Dataset):
             dsl_code = f.read()
 
         img_tensor = self.img_transform(img_stacked_pil)
-        dsl_tokens = self.dsl_transform('<START> ' + dsl_code + ' <END>')
+        dsl_tokens = self.dsl_transform('<START>\n' + dsl_code + '\n<END>')
         dsl_tensor = torch.LongTensor(dsl_tokens)
 
         return img_tensor, dsl_tensor
@@ -85,7 +85,7 @@ def pad_collate_fn(batch):
     return img_tensor, dsl_tensor
 
 
-batch_size = 256
+batch_size = 64
 train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=pad_collate_fn)
 val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate_fn)
 
@@ -93,16 +93,21 @@ val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, 
 # Define hyperparameters
 input_size = 768
 hidden_size = 256
-output_size = len(vocabulary) # Replace with the size of your DSL token vocabulary
-num_layers = 3
-epochs = 100
-learning_rate = 0.001
+output_size = len(vocabulary)
+num_layers = 6
+epochs = 1000
+learning_rate = 0.0001
 
 # Initialize the decoder, loss function, and optimizer
 decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
 PAD_token_id = tokenizer.encode('<PAD>')[0]
 criterion = nn.CrossEntropyLoss(ignore_index=PAD_token_id)
-optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
+optimizer = AdamW(decoder.parameters(), lr=learning_rate)
+
+# Initialize the learning rate scheduler with warm-up
+num_warmup_steps = 500
+num_training_steps = epochs * len(train_data_loader)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps)
 
 # Initialize variables to track the best validation loss and epoch
 best_val_loss = float("inf")
@@ -131,13 +136,18 @@ for epoch in range(epochs):
         target_tokens = dsl_tensor[:, 1:]
 
         output = decoder(input_tokens, image_features)
+
         target_tokens = target_tokens.permute(1, 0)
         loss = criterion(output.permute(0, 2, 1), target_tokens)
+        
+        # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(decoder.parameters(), max_norm=1.0)
 
         # Backpropagation and optimization
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         if i % 10 == 0:
             print(f"Epoch {epoch+1}/{epochs}, Step {i}/{len(train_data_loader)}, Loss: {loss.item()}")
