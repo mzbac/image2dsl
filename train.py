@@ -76,7 +76,7 @@ def pad_collate_fn(batch):
     end_token = tokenizer.encode('<PAD>')[0]
     padded_dsls = []
     for dsl in dsls:
-        padded_dsls.append(torch.cat([dsl, torch.full((max_len - len(dsl),), end_token, dtype=torch.long)]))
+        padded_dsls.append(torch.cat([dsl, torch.full((max_len - len(dsl),), end_token,dtype=torch.long)]))
 
     # Stack padded DSL sequences and images
     img_tensor = torch.stack(imgs)
@@ -85,7 +85,7 @@ def pad_collate_fn(batch):
     return img_tensor, dsl_tensor
 
 
-batch_size = 64
+batch_size = 128
 train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=pad_collate_fn)
 val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate_fn)
 
@@ -96,12 +96,19 @@ hidden_size = 256
 output_size = len(vocabulary)
 num_layers = 6
 epochs = 1000
-learning_rate = 0.0001
+learning_rate = 0.0005
 
 # Initialize the decoder, loss function, and optimizer
 decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
-PAD_token_id = tokenizer.encode('<PAD>')[0]
-criterion = nn.CrossEntropyLoss(ignore_index=PAD_token_id)
+
+# Apply Xavier initialization to the decoder
+for p in decoder.parameters():
+    if p.dim() > 1:
+        nn.init.xavier_uniform_(p)
+
+ignore_index = tokenizer.encode('<PAD>')[0]
+criterion = nn.CrossEntropyLoss(ignore_index=ignore_index)
+
 optimizer = AdamW(decoder.parameters(), lr=learning_rate)
 
 # Initialize the learning rate scheduler with warm-up
@@ -137,11 +144,11 @@ for epoch in range(epochs):
 
         output = decoder(input_tokens, image_features)
 
-        target_tokens = target_tokens.permute(1, 0)
-        loss = criterion(output.permute(0, 2, 1), target_tokens)
-        
+        output_transposed = output.permute(1, 2, 0)  
+
+        loss = criterion(output_transposed, target_tokens)        
         # Gradient clipping
-        torch.nn.utils.clip_grad_norm_(decoder.parameters(), max_norm=1.0)
+        torch.nn.utils.clip_grad_norm_(decoder.parameters(), max_norm=2.0)
 
         # Backpropagation and optimization
         optimizer.zero_grad()
@@ -167,9 +174,10 @@ for epoch in range(epochs):
             target_tokens = dsl_tensor[:, 1:]
 
             output = decoder(input_tokens, image_features)
-            target_tokens = target_tokens.permute(1, 0)
+            
+            output_transposed = output.permute(1, 2, 0)  
 
-            val_loss += criterion(output.permute(0, 2, 1), target_tokens).item()
+            val_loss +=  criterion(output_transposed, target_tokens).item()
 
 
     val_loss /= len(val_data_loader)
