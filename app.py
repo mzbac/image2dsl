@@ -1,4 +1,3 @@
-# app.py
 import os
 import base64
 from io import BytesIO
@@ -53,7 +52,7 @@ def generate_code_endpoint():
     return jsonify({"generated_html": response_text})
 
 
-def call_gpt3(api_key, generated_code, prompt="for online shop for selling cloth"):
+def call_gpt3(api_key, generated_code, prompt="for an online shop"):
     system_prompt = "You are a useful assistant that helping people to design website, do not include any additional information in answer."
     user_prompt = f'''
 Please generate the proper content for `...` based on the purpose of the site, style the HTML using Tailwind CSS framework, the purpose of the site is for {prompt}

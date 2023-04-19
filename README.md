@@ -2,7 +2,7 @@
 
 This repository contains the implementation of an Image to DSL (Domain Specific Language) model. The model uses a pre-trained Vision Transformer (ViT) as an encoder to extract image features and a custom Transformer Decoder to generate DSL code from the extracted features.
 
-![Model Architecture](mermaid-diagram-2023-04-16-161252.png)
+![Model Architecture](mermaid-diagram-20230419202149.png)
 
 ## Overview
 
@@ -19,11 +19,11 @@ This repository contains the implementation of an Image to DSL (Domain Specific 
 
 ## Installation
 
-1. Clone this repository:
-   - git clone https://github.com/mzbac/image2dsl
-   - cd image2dsl
-2. Install the required packages:
-   - pip install -r requirements.txt
+Install the required packages:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Dataset
 
@@ -41,6 +41,10 @@ The training script will train the model for the specified number of epochs and 
 ## Inference
 
 To generate DSL code from an input image, run `generate.py` script. The script will load the best model weights and generate DSL code for the input image.
+
+## Server as an API with integration of Chatbot GPT
+
+To start the server, execute the `app.py` script. This script will load the optimal model weights and initiate a server on port 8080. The server provides a single endpoint `/generate_code`, which accepts an image and an OpenAI API key as input, and returns the generated HTML code.
 
 ## Model Architecture
 
