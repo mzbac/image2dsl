@@ -37,6 +37,14 @@ def generate_code(image_path, tokenizer, vit_model, decoder, max_length=512):
         
         if next_token_id.item() == tokenizer.encode('<END>')[0]:
             break
+        
+        # Replace the button color with 'btn' to address the bias in the training dataset
+        button_colors = ['btn-orange', 'btn-green', 'btn-red']
+
+        for color in button_colors:
+            if next_token_id.item() == tokenizer.encode(color)[0]:
+                generated_code.append('btn')
+                break
 
         generated_code.append(tokenizer.decode(next_token_id))
 
