@@ -1,13 +1,12 @@
 import os
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from transformers import ViTModel
+from transformers import ViTModel, GPT2Tokenizer, AdamW, get_linear_schedule_with_warmup
 from PIL import Image
 import numpy as np
-from utils import vocabulary, tokenizer, img_transform
-from model import CustomTransformerDecoder
+from model import GPT2DecoderWithImageFeatures
+from utils import img_transform, special_tokens_dict
 
 # Load and preprocess data
 class Pix2CodeDataset(Dataset):
@@ -41,7 +40,7 @@ class Pix2CodeDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path, dsl_path = self.data[idx]
-        img_rgb =Image.open(img_path)
+        img_rgb = Image.open(img_path)
         img_grey = img_rgb.convert("L")
         img_adapted = img_grey.point(lambda x: 255 if x > 128 else 0)
         img_stacked = np.stack((img_adapted, img_adapted, img_adapted), axis=-1)
@@ -51,15 +50,17 @@ class Pix2CodeDataset(Dataset):
             dsl_code = f.read()
 
         img_tensor = self.img_transform(img_stacked_pil)
-        dsl_tokens = self.dsl_transform('<START> ' + dsl_code + ' <END>')
+        dsl_tokens = self.dsl_transform('<START>\n' + dsl_code + '\n<END>')
         dsl_tensor = torch.LongTensor(dsl_tokens)
 
         return img_tensor, dsl_tensor
 
 # Initialize ViT model, dataset, and data loader
 vit_model = ViTModel.from_pretrained('google/vit-base-patch16-224').base_model
-    
+
 # Replace the dsl_transform with the tokenizer.encode method
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+tokenizer.add_special_tokens(special_tokens_dict)
 dsl_transform = tokenizer.encode
 
 # Create train and validation data loaders
@@ -84,25 +85,27 @@ def pad_collate_fn(batch):
 
     return img_tensor, dsl_tensor
 
-
-batch_size = 256
+batch_size = 32
 train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=pad_collate_fn)
 val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate_fn)
 
-
 # Define hyperparameters
 input_size = 768
-hidden_size = 256
-output_size = len(vocabulary) # Replace with the size of your DSL token vocabulary
-num_layers = 3
-epochs = 100
-learning_rate = 0.001
+num_layers = 6
+epochs = 1000
+learning_rate = 0.0001
 
 # Initialize the decoder, loss function, and optimizer
-decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
-PAD_token_id = tokenizer.encode('<PAD>')[0]
-criterion = nn.CrossEntropyLoss(ignore_index=PAD_token_id)
-optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
+decoder = GPT2DecoderWithImageFeatures(input_size)
+decoder.gpt.resize_token_embeddings(len(tokenizer))  # Update the GPT2 model with the new tokenizer
+decoder.load_state_dict(torch.load("best_decoder.pth"))
+criterion = nn.CrossEntropyLoss()
+optimizer = AdamW(decoder.parameters(), lr=learning_rate)
+
+# Initialize the learning rate scheduler with warm-up
+num_warmup_steps = 500
+num_training_steps = epochs * len(train_data_loader)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps)
 
 # Initialize variables to track the best validation loss and epoch
 best_val_loss = float("inf")
@@ -117,7 +120,7 @@ vit_model.eval()
 
 for epoch in range(epochs):
     for i, (img_tensor, dsl_tensor) in enumerate(train_data_loader):
-        loss =0
+        loss = 0
         decoder.train()
         img_tensor = img_tensor.to(device)
         dsl_tensor = dsl_tensor.to(device)
@@ -126,22 +129,25 @@ for epoch in range(epochs):
         with torch.no_grad():
             image_features = vit_model(img_tensor).last_hidden_state[:, 0, :]
 
-        # Training loop for the Transformer decoder
+        # Training loop for the GPT2DecoderWithImageFeatures
         input_tokens = dsl_tensor[:, :-1]
         target_tokens = dsl_tensor[:, 1:]
-
+       
         output = decoder(input_tokens, image_features)
-        target_tokens = target_tokens.permute(1, 0)
+
         loss = criterion(output.permute(0, 2, 1), target_tokens)
+
+        # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(decoder.parameters(), max_norm=2.0)
 
         # Backpropagation and optimization
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         if i % 10 == 0:
             print(f"Epoch {epoch+1}/{epochs}, Step {i}/{len(train_data_loader)}, Loss: {loss.item()}")
-
 
     # Evaluate the model on the validation set
     val_loss = 0
@@ -154,17 +160,14 @@ for epoch in range(epochs):
             image_features = vit_model(img_tensor).last_hidden_state[:, 0, :]
 
             input_tokens = dsl_tensor[:, :-1]
-            target_tokens = dsl_tensor[:, 1:]
+            target_tokens = dsl_tensor[:, 1:]     
 
             output = decoder(input_tokens, image_features)
-            target_tokens = target_tokens.permute(1, 0)
 
             val_loss += criterion(output.permute(0, 2, 1), target_tokens).item()
 
-
     val_loss /= len(val_data_loader)
     print(f"Epoch {epoch+1}/{epochs}, Validation Loss: {val_loss}")
-
     # Save the best model weights
     if val_loss < best_val_loss:
         best_val_loss = val_loss

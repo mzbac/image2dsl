@@ -36,7 +36,7 @@ bash get_data.sh
 ## Training
 
 To train the model, simply run the `train.py` script:
-The training script will train the model for the specified number of epochs and save the best model weights in the current directory as `best_decoder.pth` and `fine_tuned_vit_model.pth`.
+The training script will train the model for the specified number of epochs and save the best model weights in the current directory as `best_decoder.pth`.
 
 ## Inference
 
@@ -49,6 +49,6 @@ The Image to DSL model consists of the following components:
 - Input Image: An image of a web UI that serves as input to the model.
 - Preprocessing: The input image is preprocessed to prepare it for the ViT model.
 - ViT Model: A pretrained Vision Transformer model is used to extract features from the preprocessed input image.
-- Transformer Decoder: A custom Transformer decoder takes the image features and generates the corresponding DSL tokens.
+- GPT-2 Pre-trained Decoder: A pre-trained Transformer decoder takes image features and generates the corresponding DSL tokens.
 - Output Tokens: The generated tokens are passed through a linear layer to produce the final output tokens.
 - Predicted DSL Code: The output tokens are decoded back into the DSL code.

@@ -1,22 +1,24 @@
 import torch.nn as nn
-from torch.nn import TransformerDecoder, TransformerDecoderLayer
+from transformers import GPT2LMHeadModel
 
-class CustomTransformerDecoder(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1):
-        super(CustomTransformerDecoder, self).__init__()
+class GPT2DecoderWithImageFeatures(nn.Module):
+    def __init__(self, input_size, gpt_model_name='gpt2'):
+        super(GPT2DecoderWithImageFeatures, self).__init__()
 
-        self.embedding = nn.Embedding(output_size, hidden_size)
-        self.image_feature_projection = nn.Linear(input_size, hidden_size)
-        self.transformer_decoder_layer = TransformerDecoderLayer(hidden_size, nhead=8, dim_feedforward=hidden_size*4)
-        self.transformer_decoder = TransformerDecoder(self.transformer_decoder_layer, num_layers=num_layers)
-        self.fc = nn.Linear(hidden_size, output_size)
+        self.gpt = GPT2LMHeadModel.from_pretrained(gpt_model_name)
+        self.image_feature_projection = nn.Linear(input_size, self.gpt.config.n_embd)
 
     def forward(self, input, image_features):
-        embedded = self.embedding(input)
-        embedded = embedded.permute(1, 0, 2)
-        image_features = self.image_feature_projection(image_features)
-        image_features = image_features.unsqueeze(0).repeat(embedded.size(0), 1, 1)
-        output = self.transformer_decoder(embedded, image_features)
-        output = self.fc(output)
-        return output
+        # Transform the image features to the GPT embedding size
+        transformed_image_features = self.image_feature_projection(image_features)
 
+        # Get the input token embeddings
+        input_emb = self.gpt.transformer.wte(input)
+
+        # Concatenate the transformed image features with the input token embeddings
+        input_emb = torch.cat([transformed_image_features.unsqueeze(1), input_emb], dim=1)
+
+        # Run the GPT model with the concatenated input
+        output = self.gpt(inputs_embeds=input_emb)["logits"]
+
+        return output

@@ -5,3 +5,5 @@ tokenizers>=0.10.0
 numpy>=1.21.0
 Pillow >= 2.1.0
 transformers
+Flask
+requests

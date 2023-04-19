@@ -1,74 +1,61 @@
 import torch
+from transformers import GPT2Tokenizer
 from PIL import Image
-import numpy as np
+from model import GPT2DecoderWithImageFeatures
 from transformers import ViTModel
-from utils import vocabulary, tokenizer, img_transform
-from model import CustomTransformerDecoder
+from torchvision import transforms
+import numpy as np
+from utils import img_transform, special_tokens_dict
 
-def generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path, max_len=48):
- # Set the models to evaluation mode
-    decoder.eval()
-    vit_model.eval()
-    
-    device = torch.device("cpu")
 
-    # Load saved model weights
-    saved_decoder_weights = torch.load(decoder_weights_path, map_location=device)
-
-    # Load the weights into the models
-    decoder.load_state_dict(saved_decoder_weights)
-
-    # Load and preprocess image
-    img_rgb = Image.open(img_path)
+def generate_code(image_path, tokenizer, vit_model, decoder, max_length=512):
+    # Load and preprocess the image
+    img_rgb = Image.open(image_path)
     img_grey = img_rgb.convert("L")
     img_adapted = img_grey.point(lambda x: 255 if x > 128 else 0)
     img_stacked = np.stack((img_adapted, img_adapted, img_adapted), axis=-1)
     img_stacked_pil = Image.fromarray(np.uint8(img_stacked), mode='RGB')
-    img_tensor = img_transform(img_stacked_pil).unsqueeze(0).to(device)
+    img_tensor = img_transform(img_stacked_pil)
+    img_tensor = img_tensor.unsqueeze(0).to(device)
 
+    # Extract image features using ViT model
     with torch.no_grad():
         image_features = vit_model(img_tensor).last_hidden_state[:, 0, :]
 
-    # Initialize input sequence with <START> token
-    input_sequence = [tokenizer.encode('<START>')[0]]
-    input_sequence = torch.LongTensor(input_sequence).unsqueeze(1).to(device)
+    # Prepare the initial input for the decoder
+    input_ids = tokenizer.encode('<START>', return_tensors='pt').to(device)
 
-    generated_tokens = []
-
-    # Generate tokens one-by-one
-    for _ in range(max_len):
+    # Generate code using the decoder
+    decoder.eval()
+    generated_code = []
+    for _ in range(max_length):
         with torch.no_grad():
-            output = decoder(input_sequence, image_features)
-
-        # Get the token with the highest probability
-        token = output[-1, 0].argmax().item()
-
-        # Print the generated token
-        print(f"Generated token: {token} - {tokenizer.decode([token])}")
-
-        # Stop generating tokens when <END> token is produced
-        if token == tokenizer.encode('<END>')[0]:
+            output = decoder(input_ids, image_features)
+        
+        next_token_id = torch.argmax(output, dim=-1)[:, -1]
+        input_ids = torch.cat([input_ids, next_token_id.unsqueeze(-1)], dim=-1)
+        
+        if next_token_id.item() == tokenizer.encode('<END>')[0]:
             break
 
-        generated_tokens.append(token)
-        input_sequence = torch.cat([input_sequence, torch.LongTensor([token]).unsqueeze(1)], dim=1)
+        generated_code.append(tokenizer.decode(next_token_id))
 
-    # Convert generated tokens to code
-    generated_code = tokenizer.decode(generated_tokens)
-    return generated_code
-
+    return ''.join(generated_code)
 if __name__ == "__main__":
-    img_path = "images.png"
-    decoder_weights_path = "best_decoder.pth"
-    vit_weights_path = "fine_tuned_vit_model.pth"
-
-    # Instantiate the ViT model and the decoder
+    # Load the tokenizer, ViT model, and decoder
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    tokenizer.add_special_tokens(special_tokens_dict)
     vit_model = ViTModel.from_pretrained('google/vit-base-patch16-224').base_model
-    input_size = 768
-    hidden_size = 256
-    output_size = len(vocabulary)
-    num_layers = 3
-    decoder = CustomTransformerDecoder(input_size, hidden_size, output_size, num_layers)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    vit_model.to(device)
 
-    generated_code = generate_code(decoder, img_path, vit_model, tokenizer, img_transform, decoder_weights_path, vit_weights_path)
-    print(generated_code)
+    decoder = GPT2DecoderWithImageFeatures(input_size=768)
+    decoder.gpt.resize_token_embeddings(len(tokenizer))  # Update the GPT2 model with the new tokenizer
+
+    decoder.load_state_dict(torch.load("best_decoder.pth",map_location=device))
+    decoder.to(device)
+
+    # Perform inference on a test image
+    image_path = "images.png"
+    generated_code = generate_code(image_path, tokenizer, vit_model, decoder)
+    print("Generated code:\n", generated_code)
