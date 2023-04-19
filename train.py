@@ -86,7 +86,7 @@ def pad_collate_fn(batch):
 
     return img_tensor, dsl_tensor
 
-batch_size = 32
+batch_size = 4
 train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=pad_collate_fn)
 val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=pad_collate_fn)
 

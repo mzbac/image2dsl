@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 from transformers import GPT2LMHeadModel
 
 class GPT2DecoderWithImageFeatures(nn.Module):
@@ -15,10 +16,15 @@ class GPT2DecoderWithImageFeatures(nn.Module):
         # Get the input token embeddings
         input_emb = self.gpt.transformer.wte(input)
 
-        # Concatenate the transformed image features with the input token embeddings
-        input_emb = torch.cat([transformed_image_features.unsqueeze(1), input_emb], dim=1)
+        # Repeat the transformed image features to match the input sequence length
+        repeated_image_features = transformed_image_features.unsqueeze(1).repeat(1, input_emb.size(1), 1)
 
-        # Run the GPT model with the concatenated input
+        # Add the transformed image features to the input token embeddings
+        input_emb = input_emb + repeated_image_features
+
+        # Run the GPT model with the updated input
         output = self.gpt(inputs_embeds=input_emb)["logits"]
 
         return output
+
+

@@ -23,9 +23,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vit_model.to(device)
 
 decoder = GPT2DecoderWithImageFeatures(input_size=768)
-decoder.gpt.resize_token_embeddings(len(tokenizer))  # Update the GPT2 model with the new tokenizer
+# Update the GPT2 model with the new tokenizer
+decoder.gpt.resize_token_embeddings(len(tokenizer))
 
-decoder.load_state_dict(torch.load("best_decoder.pth",map_location=device))
+decoder.load_state_dict(torch.load("best_decoder.pth", map_location=device))
 decoder.to(device)
 
 # Add this method to save the received image
@@ -36,26 +37,50 @@ def save_image(image_data):
     img.save(image_path)
     return image_path
 
+
 @app.route('/generate_code', methods=['POST'])
 def generate_code_endpoint():
     api_key = request.json['api_key']
     image_data = request.json['image_data']
-    image_path = save_image(image_data)
-    generated_code = generate_code(image_path, tokenizer, vit_model, decoder)
+    prompt = request.json['prompt']
 
-    response_text = call_gpt3(api_key, generated_code)
+    image_path = save_image(image_data)
+    print(image_path)
+    generated_code = generate_code(image_path, tokenizer, vit_model, decoder)
+    print(generated_code)
+    response_text = call_gpt3(api_key, generated_code,prompt)
+    print(response_text)
     return jsonify({"generated_html": response_text})
 
-def call_gpt3(api_key, generated_code):
-    system_prompt = "You are a helpful assistant."
+
+def call_gpt3(api_key, generated_code, prompt="for online shop for selling cloth"):
+    system_prompt = "You are a useful assistant that helping people to design website, do not include any additional information in answer."
+    user_prompt = f'''
+Please generate the proper content for `...` based on the purpose of the site, style the HTML using Tailwind CSS framework, the purpose of the site is for {prompt}
+
+DSL-to-HTML mapping:
+header -> <header class="...">...</header>
+btn-inactive -> <button class="...">
+row -> <div class="row">...</div>
+double -> <div class="col-md-6">...</div>
+single -> <div class="col-md-12">...</div>
+quadruple -> <div class="col-md-3">...</div>
+small-title -> <h4>...</h4>
+text -> <p>...</p>
+btn-> <button class="...">...</button>
+
+DSL code:
+{generated_code}
+
+Output the minified HTML and CSS code!
+'''    
+    print(user_prompt)
     chat_gpt_request = get_configured_chat_gpt_request([
         {
             "role": "system",
             "content": system_prompt
         },
-        { "role": "user", "content": '''
-        
-        '''},
+        {"role": "user", "content": user_prompt},
     ])
 
     headers = {
@@ -64,12 +89,15 @@ def call_gpt3(api_key, generated_code):
     }
 
     try:
-        response = requests.post("https://api.openai.com/v1/chat/completions", json=chat_gpt_request, headers=headers)
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions", json=chat_gpt_request, headers=headers)
         result = response.json()
+        print(result)
         return result['choices'][0]['message']['content']
     except Exception as error:
         print(f"Error: {error}")
         return None
+
 
 def get_configured_chat_gpt_request(messages):
     return {
@@ -77,6 +105,7 @@ def get_configured_chat_gpt_request(messages):
         "max_tokens": 3000,
         "model": "gpt-4",
     }
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 8080), debug=True)

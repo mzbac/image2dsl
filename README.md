@@ -21,7 +21,7 @@ This repository contains the implementation of an Image to DSL (Domain Specific 
 
 1. Clone this repository:
    - git clone https://github.com/mzbac/image2dsl
-   - cd imagetodsl
+   - cd image2dsl
 2. Install the required packages:
    - pip install -r requirements.txt
 
