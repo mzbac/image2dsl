@@ -51,6 +51,7 @@ class Pix2CodeDataset(Dataset):
 
         img_tensor = self.img_transform(img_stacked_pil)
         dsl_tokens = self.dsl_transform('<START>\n' + dsl_code + '\n<END>')
+        dsl_tokens = self.dsl_transform('<START>\n' + dsl_code + '\n<END>')
         dsl_tensor = torch.LongTensor(dsl_tokens)
 
         return img_tensor, dsl_tensor
@@ -77,7 +78,7 @@ def pad_collate_fn(batch):
     end_token = tokenizer.encode('<PAD>')[0]
     padded_dsls = []
     for dsl in dsls:
-        padded_dsls.append(torch.cat([dsl, torch.full((max_len - len(dsl),), end_token, dtype=torch.long)]))
+        padded_dsls.append(torch.cat([dsl, torch.full((max_len - len(dsl),), end_token,dtype=torch.long)]))
 
     # Stack padded DSL sequences and images
     img_tensor = torch.stack(imgs)
@@ -144,6 +145,7 @@ for epoch in range(epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
         scheduler.step()
 
         if i % 10 == 0:
